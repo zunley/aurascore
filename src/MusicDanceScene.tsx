@@ -100,7 +100,22 @@ const loadMidi = async (): Promise<ParsedMidi> => {
   return parseMidi(await response.arrayBuffer());
 };
 
-const MidiScore: React.FC<{midi: ParsedMidi}> = ({midi}) => {
+/** Optional public/metadata.json; a missing or invalid file just falls back to a placeholder title. */
+const loadMetadata = async (): Promise<{title?: string} | null> => {
+  try {
+    const response = await fetch(staticFile("metadata.json"));
+    if (!response.ok) return null;
+    const data: unknown = await response.json();
+    if (typeof data === "object" && data !== null && "title" in data && typeof (data as {title: unknown}).title === "string") {
+      return data as {title: string};
+    }
+    return {};
+  } catch {
+    return null;
+  }
+};
+
+const MidiScore: React.FC<{midi: ParsedMidi; title: string}> = ({midi, title}) => {
   const frame = useCurrentFrame();
   const {fps, width} = useVideoConfig();
   const seconds = frame / fps;
@@ -132,7 +147,7 @@ const MidiScore: React.FC<{midi: ParsedMidi}> = ({midi}) => {
   return (
     <div style={{position: "absolute", inset: 0, overflow: "hidden", background: "radial-gradient(ellipse at 50% 48%, #e9e2d2 0%, #d5ccba 100%)", color: config.colors.text, fontFamily: "Georgia, 'Times New Roman', serif", perspective: `${config.perspective}px`, perspectiveOrigin: "50% 48%", transformStyle: "preserve-3d"}}>
       <div style={{position: "absolute", inset: 0, opacity: 0.24, backgroundImage: "repeating-linear-gradient(0deg, rgba(86,72,48,.08) 0px, transparent 1px, transparent 4px), radial-gradient(ellipse, transparent 58%, rgba(76,65,47,.22) 100%)"}} />
-      <div style={{position: "absolute", left: "8%", top: "8%", font: "italic 24px Georgia, serif", color: "#39465a"}}>A study in motion</div>
+      <div style={{position: "absolute", left: "8%", top: "8%", font: "italic 24px Georgia, serif", color: "#39465a"}}>{title}</div>
       <div style={{position: "absolute", right: "8%", top: "9%", font: "10px ui-sans-serif, system-ui", letterSpacing: ".2em", color: "#6e7781"}}>SOURCE  /  INPUT.MID</div>
       <div style={{position: "absolute", left: 0, top: "51%", width: Math.max(scoreWidth, width * 2), height: 570, transform: `translateY(-50%) rotateX(${config.stageRotateX}deg) rotateZ(${config.stageRotateZ}deg)`, transformStyle: "preserve-3d", transformOrigin: "0 50%"}}>
         <div style={{position: "absolute", inset: 0, backgroundColor: config.colors.paper, backgroundImage: "linear-gradient(90deg, rgba(107,80,47,.035), transparent 12%, transparent 88%, rgba(107,80,47,.04)), repeating-linear-gradient(0deg, rgba(108,90,62,.018), rgba(108,90,62,.018) 1px, transparent 1px, transparent 5px)", boxShadow: "0 22px 70px rgba(48,42,31,.24), 0 2px 7px rgba(50,45,34,.18)", border: "1px solid rgba(94,77,52,.16)"}} />
@@ -174,13 +189,15 @@ const MidiScore: React.FC<{midi: ParsedMidi}> = ({midi}) => {
 
 export const MusicDanceScene: React.FC = () => {
   const [midi, setMidi] = useState<ParsedMidi | null>(null);
+  const [title, setTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [handle] = useState(() => delayRender("Loading public/input.mid"));
 
   useEffect(() => {
-    loadMidi().then((parsed) => {
+    Promise.all([loadMidi(), loadMetadata()]).then(([parsed, metadata]) => {
       if (parsed.notes.length === 0) throw new Error("input.mid contains no note events");
       setMidi(parsed);
+      setTitle(metadata?.title ?? "Untitled nocturne");
       continueRender(handle);
     }).catch((cause: unknown) => {
       const message = cause instanceof Error ? cause.message : String(cause);
@@ -191,5 +208,5 @@ export const MusicDanceScene: React.FC = () => {
 
   if (error) return <div style={{padding: 40, color: "#5d3030", background: "#f4eedf", fontFamily: "Georgia, serif"}}>Unable to read public/input.mid: {error}</div>;
   if (!midi) return null;
-  return <><Audio src={staticFile("input.mp3")} /><MidiScore midi={midi} /></>;
+  return <><Audio src={staticFile("input.mp3")} /><MidiScore midi={midi} title={title ?? "Untitled nocturne"} /></>;
 };

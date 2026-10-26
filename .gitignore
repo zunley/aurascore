@@ -1,3 +1,4 @@
-public
+public/*
+!public/metadata.json
 node_modules
 out
