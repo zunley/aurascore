@@ -11,6 +11,10 @@ export const ANIMATION_CONFIG = {
   trailSpacingFrames: 1.25,
   worldStep: 92,
   hopHeight: 32,
+  jumpHeightPerSemitone: 1.8,
+  maximumJumpHeight: 128,
+  landingCompressionX: 0.24,
+  landingCompressionY: 0.32,
   staffLineGap: 24,
   noteSpacing: 13,
   registerSplitPitch: 60,
@@ -18,6 +22,11 @@ export const ANIMATION_CONFIG = {
     damping: 18,
     stiffness: 150,
     mass: 0.7,
+  },
+  impactSpring: {
+    damping: 9,
+    stiffness: 260,
+    mass: 0.55,
   },
   colors: {
     background: "#d8d0bd",
@@ -28,6 +37,7 @@ export const ANIMATION_CONFIG = {
     accentBright: "#e8bb75",
     trail: "#c6945d",
     cursor: "#38bdf8",
+    bassCursor: "#f4ae62",
     text: "#566274",
   },
 } as const;

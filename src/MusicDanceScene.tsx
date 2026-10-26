@@ -34,26 +34,65 @@ const findCurrentIndex = (notes: MidiNote[], seconds: number) => {
   return index;
 };
 
-const getCursorPosition = (midi: ParsedMidi, seconds: number) => {
-  const index = findCurrentIndex(midi.notes, seconds);
-  const current = midi.notes[index] ?? midi.notes[0];
-  const next = midi.notes[Math.min(index + 1, midi.notes.length - 1)] ?? current;
-  const progress = index === midi.notes.length - 1
+type CursorPose = {index: number; x: number; y: number; z: number; progress: number; current: MidiNote};
+
+const getCursorPosition = (notes: MidiNote[], midi: ParsedMidi, seconds: number): CursorPose => {
+  const index = findCurrentIndex(notes, seconds);
+  const current = notes[index] ?? notes[0];
+  const next = notes[Math.min(index + 1, notes.length - 1)] ?? current;
+  const progress = index === notes.length - 1
     ? 0
     : interpolate(seconds, [current.startSeconds, Math.max(current.startSeconds + 0.001, next.startSeconds)], [0, 1], clamp);
   const currentTreble = current.pitch >= config.registerSplitPitch;
   const nextTreble = next.pitch >= config.registerSplitPitch;
+  const flightSeconds = Math.max(1 / 240, next.startSeconds - current.startSeconds);
+  const pitchDistance = Math.abs(next.pitch - current.pitch);
+  const jumpHeight = Math.min(config.maximumJumpHeight, config.hopHeight + pitchDistance * config.jumpHeightPerSemitone);
+  // z(t) = 1/2*g*t*(T-t), with g chosen to reach the pitch-dependent apex.
+  // This yields a true constant-gravity parabola and returns to the score plane at both ends.
+  const gravity = (8 * jumpHeight) / (flightSeconds * flightSeconds);
+  const elapsed = progress * flightSeconds;
   return {
     index,
     progress,
     x: interpolate(progress, [0, 1], [noteX(current, midi), noteX(next, midi)]),
-    y: interpolate(progress, [0, 1], [pitchY(current.pitch, currentTreble), pitchY(next.pitch, nextTreble)]) - Math.sin(progress * Math.PI) * config.hopHeight,
+    y: interpolate(progress, [0, 1], [pitchY(current.pitch, currentTreble), pitchY(next.pitch, nextTreble)]),
+    z: Math.max(0, 0.5 * gravity * elapsed * (flightSeconds - elapsed)),
+    current,
   };
 };
 
-const LightCursor: React.FC<{x: number; y: number; scale: number; glow: number}> = ({x, y, scale, glow}) => (
-  <div style={{position: "absolute", left: x, top: y, width: config.cursorRadius * 2, height: config.cursorRadius * 2, borderRadius: "50%", transform: `translate(-50%, -50%) scale(${scale})`, background: "radial-gradient(circle at 40% 36%, #ffffff 0%, #f5fcff 48%, #c9f2ff 100%)", boxShadow: `0 0 ${13 + glow * 18}px ${config.colors.cursor}, 0 0 ${30 + glow * 34}px rgba(56,189,248,${0.38 + glow * 0.3})`, border: "1px solid rgba(255,255,255,.98)", zIndex: 8, pointerEvents: "none"}} />
+const LightCursor: React.FC<{x: number; y: number; z: number; squashX: number; squashY: number; glow: number; color: string}> = ({x, y, z, squashX, squashY, glow, color}) => (
+  <>
+    <span style={{position: "absolute", left: x, top: y, width: config.cursorRadius * 2.2, height: config.cursorRadius * 0.7, borderRadius: "50%", transform: `translate(-50%, -50%) scale(${1 + z * 0.008}, ${1 + z * 0.004})`, background: `radial-gradient(ellipse, rgba(31,42,52,${0.2 - Math.min(0.12, z * 0.0008)}), transparent 72%)`, filter: "blur(2px)", zIndex: 3, pointerEvents: "none"}} />
+    <span style={{position: "absolute", left: x, top: y, width: 28, height: 28, borderRadius: "50%", transform: `translate(-50%, -50%) translateZ(1px) scale(${interpolate(glow, [0, 1], [0.65, 1.65], clamp)})`, opacity: interpolate(glow, [0, 1], [0, 0.68], clamp), border: `1px solid ${color}`, boxShadow: `0 0 12px ${color}`, zIndex: 5, pointerEvents: "none"}} />
+    <span style={{position: "absolute", left: x, top: y, width: config.cursorRadius * 2, height: config.cursorRadius * 2, borderRadius: "50%", transform: `translate(-50%, -50%) translateZ(${z}px) scale(${squashX}, ${squashY})`, background: `radial-gradient(circle at 38% 32%, #ffffff 0%, #f9fdff 45%, ${color} 100%)`, boxShadow: `0 0 ${13 + glow * 18}px ${color}, 0 0 ${30 + glow * 34}px ${color}88`, border: "1px solid rgba(255,255,255,.98)", zIndex: 8, pointerEvents: "none"}} />
+  </>
 );
+
+const VoiceCursor: React.FC<{notes: MidiNote[]; midi: ParsedMidi; frame: number; fps: number; color: string; trailLength: number}> = ({notes, midi, frame, fps, color, trailLength}) => {
+  if (notes.length === 0) return null;
+  const pose = getCursorPosition(notes, midi, frame / fps);
+  const age = Math.max(0, frame - pose.current.startSeconds * fps);
+  const pulse = spring({frame: age, fps, config: config.spring});
+  const impactSpring = spring({frame: age, fps, config: config.impactSpring});
+  const impact = Math.max(0, 1 - impactSpring);
+  const glow = interpolate(age, [0, 4, 16], [1, 0.35, 0], clamp);
+  const squashX = interpolate(pulse, [0, 1], [0.88, 1]) * (1 + impact * config.landingCompressionX);
+  const squashY = interpolate(pulse, [0, 1], [1.16, 1]) * (1 - impact * config.landingCompressionY);
+
+  return <>
+    {Array.from({length: trailLength}, (_, i) => {
+      const sampleFrame = Math.max(0, frame - (i + 1) * config.trailSpacingFrames);
+      const historical = getCursorPosition(notes, midi, sampleFrame / fps);
+      const opacity = (1 - (i + 1) / (trailLength + 1)) * 0.7;
+      const size = config.cursorRadius * 2 * (1 - (i + 1) / (trailLength + 2) * 0.62);
+      return <span key={`${color}-trail-${i}`} style={{position: "absolute", left: historical.x, top: historical.y, width: size, height: size, borderRadius: "50%", transform: `translate(-50%, -50%) translateZ(${historical.z}px)`, background: `radial-gradient(circle, rgba(255,255,255,${opacity * 0.6}) 0%, ${color}${Math.round(opacity * 255).toString(16).padStart(2, "0")} 40%, transparent 78%)`, boxShadow: `0 0 ${5 + (1 - i / trailLength) * 8}px ${color}${Math.round(opacity * 170).toString(16).padStart(2, "0")}`, filter: `blur(${i * 0.22}px)`, pointerEvents: "none", zIndex: 6 - i * 0.1}} />;
+    })}
+    <span style={{position: "absolute", left: pose.x, top: pose.y, width: 34, height: 34, borderRadius: "50%", transform: `translate(-50%, -50%) translateZ(2px) scale(${interpolate(age, [0, 18], [0.28, 2.7], clamp)})`, opacity: interpolate(age, [0, 2, 16], [0.75, 0.46, 0], clamp), border: `1px solid ${color}`, boxShadow: `0 0 12px ${color}`, zIndex: 5, pointerEvents: "none"}} />
+    <LightCursor x={pose.x} y={pose.y} z={pose.z} squashX={squashX} squashY={squashY} glow={glow} color={color} />
+  </>;
+};
 
 const loadMidi = async (): Promise<ParsedMidi> => {
   const response = await fetch(staticFile("input.mid"));
@@ -65,25 +104,19 @@ const MidiScore: React.FC<{midi: ParsedMidi}> = ({midi}) => {
   const frame = useCurrentFrame();
   const {fps, width} = useVideoConfig();
   const seconds = frame / fps;
-  const cursor = getCursorPosition(midi, seconds);
-  const currentIndex = cursor.index;
-  const current = midi.notes[currentIndex] ?? midi.notes[0];
-  const headX = cursor.x;
-  const headY = cursor.y;
-  const age = Math.max(0, frame - current.startSeconds * fps);
-  const bounce = spring({frame: age, fps, config: config.spring});
-  const scale = interpolate(bounce, [0, 1], [0.94, 1.025], clamp);
-  const glow = interpolate(age, [0, 6, 16], [0.76, 0.2, 0], clamp);
+  const trebleNotes = midi.notes.filter((note) => note.pitch >= config.registerSplitPitch);
+  const bassNotes = midi.notes.filter((note) => note.pitch < config.registerSplitPitch);
+  const treblePose = trebleNotes.length > 0 ? getCursorPosition(trebleNotes, midi, seconds) : null;
+  const bassPose = bassNotes.length > 0 ? getCursorPosition(bassNotes, midi, seconds) : null;
+  const activeNotes = [treblePose?.current, bassPose?.current].filter((note): note is MidiNote => Boolean(note));
+  const focusNotes = trebleNotes.length > 0 ? trebleNotes : bassNotes;
   // Stable frame-based damping keeps the printed score moving smoothly in renders.
   let cameraX = 0;
-  let noteIndex = 0;
+    let noteIndex = 0;
   for (let f = 0; f <= Math.floor(frame); f++) {
     const time = f / fps;
-    while (noteIndex < midi.notes.length - 1 && midi.notes[noteIndex + 1].startSeconds <= time) noteIndex++;
-    const a = midi.notes[noteIndex];
-    const b = midi.notes[Math.min(noteIndex + 1, midi.notes.length - 1)];
-    const p = noteIndex === midi.notes.length - 1 ? 0 : interpolate(time, [a.startSeconds, b.startSeconds], [0, 1], clamp);
-    const target = interpolate(p, [0, 1], [noteX(a, midi), noteX(b, midi)]) - width * config.cameraLead;
+    while (noteIndex < focusNotes.length - 1 && focusNotes[noteIndex + 1].startSeconds <= time) noteIndex++;
+    const target = getCursorPosition(focusNotes, midi, time).x - width * config.cameraLead;
     cameraX += (target - cameraX) * config.cameraDamping;
   }
   const scoreWidth = FIRST_NOTE_X + (midi.notes[midi.notes.length - 1]?.startTick ?? 0) / midi.ppq * config.worldStep + width;
@@ -112,15 +145,14 @@ const MidiScore: React.FC<{midi: ParsedMidi}> = ({midi}) => {
             const upper = note.pitch >= config.registerSplitPitch;
             const x = noteX(note, midi);
             const y = pitchY(note.pitch, upper);
-            const isCurrent = index === currentIndex;
+            const isCurrent = activeNotes.some((activeNote) => activeNote.startTick === note.startTick && activeNote.pitch === note.pitch && activeNote.channel === note.channel);
             const accidental = [1, 3, 6, 8, 10].includes(note.pitch % 12);
             const stemDown = upper ? y < TREBLE_STAFF_TOP + config.staffLineGap * 2 : y < BASS_STAFF_TOP + config.staffLineGap * 2;
             const stemTop = stemDown ? y : y - 45;
             return <React.Fragment key={`${note.channel}-${note.startTick}-${note.pitch}-${index}`}>
               {accidental && <span style={{position: "absolute", left: x - 21, top: y - 12, color: config.colors.ink, font: "18px Georgia, serif"}}>♯</span>}
-              <span title={`${pitchLabel(note.pitch)} · ${note.startSeconds.toFixed(2)}s`} style={{position: "absolute", left: x, top: y, width: 19, height: 13, borderRadius: "50%", background: isCurrent ? "#b6783f" : config.colors.ink, transform: `translate(-50%, -50%) rotate(-22deg)${isCurrent ? ` scale(${scale})` : ""}`, boxShadow: isCurrent ? `0 0 ${12 + glow * 16}px rgba(190,129,67,${.3 + glow * .5})` : "none", zIndex: isCurrent ? 3 : 1}} />
-              <span style={{position: "absolute", left: x + (stemDown ? -8 : 7), top: stemTop, width: 1.4, height: 47, background: isCurrent ? "#aa7040" : "#394559", transform: "translateY(0)", transformOrigin: stemDown ? "top" : "bottom", zIndex: 1}} />
-              {isCurrent && <span style={{position: "absolute", left: x, top: y, width: 24, height: 24, borderRadius: "50%", transform: "translate(-50%, -50%)", background: "radial-gradient(circle, rgba(231,184,116,.56), rgba(198,143,81,.19) 45%, transparent 75%)", filter: "blur(4px)", zIndex: 2}} />}
+              <span title={`${pitchLabel(note.pitch)} · ${note.startSeconds.toFixed(2)}s`} style={{position: "absolute", left: x, top: y, width: 19, height: 13, borderRadius: "50%", background: isCurrent ? (upper ? config.colors.cursor : config.colors.bassCursor) : config.colors.ink, transform: "translate(-50%, -50%) rotate(-22deg)", boxShadow: isCurrent ? `0 0 16px ${upper ? config.colors.cursor : config.colors.bassCursor}` : "none", zIndex: isCurrent ? 3 : 1}} />
+              <span style={{position: "absolute", left: x + (stemDown ? -8 : 7), top: stemTop, width: 1.4, height: 47, background: isCurrent ? (upper ? config.colors.cursor : config.colors.bassCursor) : "#394559", transform: "translateY(0)", transformOrigin: stemDown ? "top" : "bottom", zIndex: 1}} />
             </React.Fragment>;
           })}
           {midi.notes.map((note, index) => {
@@ -130,18 +162,12 @@ const MidiScore: React.FC<{midi: ParsedMidi}> = ({midi}) => {
             const x = noteX(note, midi) - config.worldStep * 2;
             return <div key={`bar-${index}`} style={{position: "absolute", left: x, top: TREBLE_STAFF_TOP, height: BASS_STAFF_TOP + config.staffLineGap * 4 - TREBLE_STAFF_TOP, borderLeft: "1px solid rgba(42,54,72,.18)"}} />;
           })}
-          {Array.from({length: config.trailLength}, (_, i) => {
-            const historicalFrame = Math.max(0, frame - (i + 1) * config.trailSpacingFrames);
-            const historical = getCursorPosition(midi, historicalFrame / fps);
-            const opacity = (1 - (i + 1) / (config.trailLength + 1)) * 0.58;
-            const size = config.cursorRadius * 2 * (1 - (i + 1) / (config.trailLength + 2) * 0.62);
-            return <span key={`trail-${i}`} style={{position: "absolute", left: historical.x, top: historical.y, width: size, height: size, borderRadius: "50%", transform: "translate(-50%, -50%)", background: `radial-gradient(circle, rgba(56,189,248,${opacity}) 0%, rgba(56,189,248,${opacity * 0.46}) 40%, transparent 76%)`, boxShadow: `0 0 ${5 + (1 - i / config.trailLength) * 8}px rgba(56,189,248,${opacity * 0.7})`, pointerEvents: "none", zIndex: 6 - i * 0.1}} />;
-          })}
-          <LightCursor x={headX} y={headY} scale={scale} glow={glow} />
+          <VoiceCursor notes={trebleNotes} midi={midi} frame={frame} fps={fps} color={config.colors.cursor} trailLength={config.trailLength} />
+          <VoiceCursor notes={bassNotes} midi={midi} frame={frame} fps={fps} color={config.colors.bassCursor} trailLength={config.trailLength} />
         </div>
       </div>
       <div style={{position: "absolute", left: "8%", bottom: "8%", font: "italic 14px Georgia, serif", color: "#667183"}}>Andante · {midi.durationSeconds.toFixed(1)} sec</div>
-      <div style={{position: "absolute", right: "8%", bottom: "8%", font: "10px ui-sans-serif, system-ui", letterSpacing: ".18em", color: "#78818a"}}>{pitchLabel(current.pitch)}  /  {currentIndex + 1} — {midi.notes.length}</div>
+      <div style={{position: "absolute", right: "8%", bottom: "8%", font: "10px ui-sans-serif, system-ui", letterSpacing: ".18em", color: "#78818a"}}>HIGH {trebleNotes.length}  ·  LOW {bassNotes.length}  /  {midi.notes.length} NOTES</div>
     </div>
   );
 };
