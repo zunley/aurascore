@@ -5,6 +5,8 @@ export const ANIMATION_CONFIG = {
   stageRotateZ: -6,
   cameraDamping: 0.075,
   cameraLead: 0.5,
+  /** Extra seconds appended to the MIDI length so the last notes can ring out. */
+  audioTailSeconds: 3.5,
   noteRadius: 12,
   cursorRadius: 10,
   trailLength: 10,

@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from "react";
-import {cancelRender, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from "remotion";
+import {Audio, cancelRender, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from "remotion";
 import {ANIMATION_CONFIG as config} from "./AnimationConfig";
 import {MidiNote, ParsedMidi, parseMidi} from "./midi";
 
@@ -191,5 +191,5 @@ export const MusicDanceScene: React.FC = () => {
 
   if (error) return <div style={{padding: 40, color: "#5d3030", background: "#f4eedf", fontFamily: "Georgia, serif"}}>Unable to read public/input.mid: {error}</div>;
   if (!midi) return null;
-  return <MidiScore midi={midi} />;
+  return <><Audio src={staticFile("input.mp3")} /><MidiScore midi={midi} /></>;
 };

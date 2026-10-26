@@ -23,7 +23,12 @@
     "typescript": "5.9.3"
   },
   "scripts": {
+    "audio": "node scripts/generate-audio.mjs",
+    "prerender": "node scripts/generate-audio.mjs --if-missing",
+    "render": "remotion render MusicDance3D out/video.mp4",
+    "predev": "node scripts/generate-audio.mjs --if-missing",
     "dev": "remotion studio",
+    "prebuild": "node scripts/generate-audio.mjs --if-missing",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc"

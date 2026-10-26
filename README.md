@@ -25,10 +25,18 @@ npm i --loglevel=error
 npm run dev
 ```
 
+**Generate audio from MIDI**
+
+Renders `public/input.mid` through a SoundFont (`public/sounds.sf2`, or any other `.sf2` in `public/`) into `public/input.mp3`. Requires `fluidsynth` and `ffmpeg`. Runs automatically before `dev`/`build`/`render` when `public/input.mp3` is missing.
+
+```console
+npm run audio
+```
+
 **Render video**
 
 ```console
-npx remotion render
+npm run render
 ```
 
 **Upgrade Remotion**
