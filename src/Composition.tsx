@@ -1,4 +1,5 @@
 import { CalculateMetadataFunction, Composition } from "remotion";
+import { MusicDanceScene } from "./MusicDanceScene";
 
 type Props = {};
 
@@ -9,9 +10,9 @@ const calculateMetadata: CalculateMetadataFunction<Props> = () => {
 export const MyComposition = () => {
   return (
     <Composition
-      id="MyComp"
-      component={MyComponent}
-      durationInFrames={60}
+      id="MusicDance3D"
+      component={MusicDanceScene}
+      durationInFrames={30 * 30}
       fps={30}
       width={1280}
       height={720}
@@ -21,5 +22,5 @@ export const MyComposition = () => {
 };
 
 export const MyComponent: React.FC<Props> = () => {
-  return null;
+  return <MusicDanceScene />;
 };
