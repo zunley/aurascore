@@ -23,6 +23,8 @@ Studio 预览与线上渲染走**同一套资产接口**（`/assets/<jobId>/*`�
 
 ## API
 
+完整接口文档见 [docs/API.md](docs/API.md)（含请求/响应示例与状态码）。
+
 鉴权：设置 `API_KEY` 环境变量后，`/api/*` 需要 `X-API-Key` 头（`/healthz` 与 `/assets/*` 除外）。
 
 ### 提交渲染任务
