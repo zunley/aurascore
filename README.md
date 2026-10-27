@@ -1,14 +1,14 @@
-# aurascore — MIDI 动态乐谱视频渲染服务
+# Aurascore — 动态乐谱
 
-把 MIDI 文件渲染成动画乐谱视频（[Remotion](https://remotion.dev) 合成 + Fastify 服务）。上传 `.mid` 与元信息，服务端异步渲染后返回 mp4，自带 Web 管理控制台。
+根据 MIDI 文件渲染成动画乐谱
 
 ## 效果预览
 
-Web 管理控制台 —— 任务列表、渲染进度、在线预览与下载：
+工作台
 
 ![Web 管理控制台](docs/assets/console-jobs.png)
 
-渲染效果（示例曲目 *Merry Christmas Mr. Lawrence* 高潮段落，[带声音的 mp4 片段](docs/assets/demo.mp4)）：
+渲染效果（示例曲目 *Merry Christmas Mr. Lawrence*）：
 
 ![渲染效果](docs/assets/demo.webp)
 
@@ -22,32 +22,10 @@ Web 管理控制台 —— 任务列表、渲染进度、在线预览与下载�
 ## 快速开始（Docker，推荐）
 
 ```bash
-git clone https://github.com/zunley/aurascore.git
-cd aurascore
-cp .env.example .env    # 按需设置 API_KEY / PORT
-make up                 # 构建镜像并后台启动
-```
-
-浏览器打开 `http://<host>:9302/` 即可使用。详细接口见 [docs/API.md](docs/API.md)。
-
-### 使用预构建镜像
-
-推送 `v*` tag 时自动构建并发布到 GHCR：
-
-```bash
 docker run -p 9302:9302 -v ./data:/app/data ghcr.io/zunley/aurascore:latest
 ```
 
-## 本地开发
-
-前置：Node.js ≥ 20.19、`fluidsynth`、`ffmpeg`。
-
-```bash
-npm i
-npm run dev:setup   # 准备 data/jobs/dev/ 与 data/soundfonts/
-npm run server      # 终端 1：API + 渲染 worker（:9302）
-npm run dev         # 终端 2：Remotion Studio 预览
-```
+浏览器打开 `http://<host>:9302/` 即可使用。
 
 ## 环境变量
 
@@ -55,9 +33,9 @@ npm run dev         # 终端 2：Remotion Studio 预览
 |------|------|------|
 | `PORT` | 9302 | 监听端口 |
 | `API_KEY` | 关闭 | 设置后启用 `X-API-Key` 鉴权 |
-| `DATA_DIR` | ./data | 任务与 SoundFont 存储目录 |
-| `WORKER_CONCURRENCY` | 1 | 并行渲染数（每个约占 1-2GB 内存） |
-| `MAX_QUEUE_DEPTH` | 20 | 队列满时提交返回 429 |
+| `DATA_DIR` | ./data | 应用数据目录 |
+| `WORKER_CONCURRENCY` | 1 | 并行渲染数 |
+| `MAX_QUEUE_DEPTH` | 20 | 最大队列数 |
 
 ## 文档
 
