@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { createReadStream, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { parseMidi } from "../shared/midi";
@@ -116,18 +116,43 @@ export const registerJobRoutes = (app: FastifyInstance, db: Db) => {
 
   app.get("/api/v1/jobs/:id/video", async (req, reply) => {
     const { id } = req.params as { id: string };
+    const { inline } = req.query as { inline?: string };
     const job = getJob(db, id);
     if (!job) return fail(reply, 404, "job not found");
     const videoPath = join(CONFIG.dataDir, "jobs", job.id, "video.mp4");
-    if (job.status === "done") {
-      if (!existsSync(videoPath)) return fail(reply, 410, "artifact expired");
-      reply
-        .header("content-type", "video/mp4")
-        .header("content-disposition", `attachment; filename="${slug(job.title, job.id)}.mp4"`);
-      return reply.send(createReadStream(videoPath));
-    }
     if (job.status === "failed") return reply.code(409).send({ error: job.error ?? "render failed", status: job.status });
-    return reply.code(409).send({ error: "job not finished", status: job.status, progress: job.progress });
+    if (job.status !== "done") return reply.code(409).send({ error: "job not finished", status: job.status, progress: job.progress });
+    if (!existsSync(videoPath)) return fail(reply, 410, "artifact expired");
+
+    const size = statSync(videoPath).size;
+    reply.header("accept-ranges", "bytes");
+
+    // Range support: seekable playback and resumed downloads.
+    const range = req.headers.range;
+    if (range) {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+      const valid = match && (match[1] !== "" || match[2] !== "");
+      const start = valid ? (match![1] === "" ? Math.max(0, size - Number(match![2])) : Number(match![1])) : -1;
+      const end = valid ? (match![1] === "" ? size - 1 : Math.min(Number(match![2] || size - 1), size - 1)) : -1;
+      if (!valid || start >= size || start > end) {
+        reply.header("content-range", `bytes */${size}`);
+        return fail(reply, 416, "range not satisfiable");
+      }
+      reply
+        .code(206)
+        .header("content-type", "video/mp4")
+        .header("content-range", `bytes ${start}-${end}/${size}`)
+        .header("content-length", end - start + 1);
+      return reply.send(createReadStream(videoPath, { start, end }));
+    }
+
+    // ?inline=1 skips the attachment header so the browser can play it in a
+    // <video> element (preview); default stays download-oriented.
+    if (inline !== "1") {
+      reply.header("content-disposition", `attachment; filename="${slug(job.title, job.id)}.mp4"`);
+    }
+    reply.header("content-type", "video/mp4").header("content-length", size);
+    return reply.send(createReadStream(videoPath));
   });
 
   app.delete("/api/v1/jobs/:id", async (req, reply) => {

@@ -67,6 +67,9 @@ const STATUS = {
   failed: { dot: "dot-off", label: "failed" },
 };
 
+/** Appends the API key as ?key= for requests that cannot carry headers. */
+const keyed = (path) => (state.apiKey ? `${path}${path.includes("?") ? "&" : "?"}key=${encodeURIComponent(state.apiKey)}` : path);
+
 const toast = (message, kind = "ok") => {
   const el = document.createElement("div");
   el.className = `toast ${kind}`;
@@ -99,20 +102,32 @@ const switchView = (view) => {
 
 /* --- jobs -------------------------------------------------------------- */
 
-const downloadJob = async (job) => {
-  try {
-    const res = await fetch(job.videoUrl, { headers: state.apiKey ? { "X-API-Key": state.apiKey } : {} });
-    if (!res.ok) throw new ApiError(`下载失败: ${res.status}`, res.status);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(job.title ?? job.id).replace(/[^\w一-鿿-]+/g, "-").slice(0, 60)}.mp4`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    handleError(err);
-  }
+const downloadJob = (job) => {
+  // Direct navigation: the browser streams the file itself (instant start,
+  // no full-file buffering). ?key= carries the API key (no custom headers).
+  const a = document.createElement("a");
+  a.href = keyed(job.videoUrl);
+  a.download = "";
+  a.click();
+};
+
+/* --- preview ----------------------------------------------------------- */
+
+const openPreview = (job) => {
+  const modal = $("#preview-modal");
+  const video = $("#preview-video");
+  $("#preview-title").textContent = job.title ?? "Untitled nocturne";
+  video.src = keyed(`/api/v1/jobs/${job.id}/video?inline=1`);
+  modal.classList.remove("hidden");
+};
+
+const closePreview = () => {
+  const modal = $("#preview-modal");
+  const video = $("#preview-video");
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+  modal.classList.add("hidden");
 };
 
 const deleteJob = async (job) => {
@@ -159,6 +174,7 @@ const renderJobs = () => {
       const error = job.error ? `<div class="row-meta"><span class="error">${esc(job.error)}</span></div>` : "";
 
       const actions = [
+        job.videoUrl ? `<button class="btn" data-act="preview" data-id="${job.id}">预览</button>` : "",
         job.videoUrl ? `<button class="btn" data-act="download" data-id="${job.id}">下载</button>` : "",
         job.status !== "rendering" ? `<button class="btn btn-danger" data-act="delete" data-id="${job.id}">删除</button>` : "",
       ].join("");
@@ -186,7 +202,11 @@ const renderJobs = () => {
   list.querySelectorAll("button[data-act]").forEach((btn) => {
     const job = jobs.find((j) => j.id === btn.dataset.id);
     if (!job) return;
-    btn.addEventListener("click", () => (btn.dataset.act === "download" ? downloadJob(job) : deleteJob(job)));
+    btn.addEventListener("click", () => {
+      if (btn.dataset.act === "download") downloadJob(job);
+      else if (btn.dataset.act === "preview") openPreview(job);
+      else deleteJob(job);
+    });
   });
 };
 
@@ -402,6 +422,13 @@ const init = () => {
   });
   $("#btn-refresh-jobs").addEventListener("click", refreshJobs);
   $("#btn-refresh-sf").addEventListener("click", refreshSoundfonts);
+  $("#preview-close").addEventListener("click", closePreview);
+  $("#preview-modal").addEventListener("click", (e) => {
+    if (e.target.id === "preview-modal") closePreview();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("#preview-modal").classList.contains("hidden")) closePreview();
+  });
 
   initForms();
   checkHealth();

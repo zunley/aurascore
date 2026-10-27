@@ -10,6 +10,8 @@
 X-API-Key: <API_KEY>
 ```
 
+无法携带自定义头的场景（浏览器直接下载、`<video>` 预览）可用查询参数代替：`?key=<API_KEY>`。
+
 `/healthz` 与 `/assets/*` 不需要鉴权。
 
 ## 典型流程
@@ -102,14 +104,24 @@ curl -OJ localhost:9302/api/v1/jobs/d8b5.../video
 
 任务不存在返回 404。
 
-### GET /api/v1/jobs/:id/video — 下载视频
+### GET /api/v1/jobs/:id/video — 下载 / 预览视频
+
+查询参数：
+
+| 参数 | 说明 |
+|------|------|
+| `inline=1` | 去掉 `Content-Disposition: attachment`，供浏览器内联播放（预览） |
+| `key=<API_KEY>` | 代替 `X-API-Key` 头（`<video>`/`<a>` 导航请求无法带自定义头） |
+
+支持 HTTP `Range` 请求（预览拖动进度、断点续传），命中时返回 `206 Partial Content`。
 
 | 状态码 | 含义 |
 |--------|------|
-| 200 | 返回 mp4（`video/mp4`，`Content-Disposition: attachment; filename="<曲名>.mp4"`） |
+| 200 / 206 | 返回 mp4（`video/mp4`，默认 `Content-Disposition: attachment; filename="<曲名>.mp4"`） |
 | 404 | 任务不存在 |
 | 409 | 未完成（`{"status":"rendering","progress":...}`）或已失败（`{"error":"..."}`） |
 | 410 | 产物已过期被清理 |
+| 416 | Range 越界 |
 
 ### DELETE /api/v1/jobs/:id — 删除任务及产物
 

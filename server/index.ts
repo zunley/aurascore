@@ -20,11 +20,14 @@ const main = async () => {
 
   // X-API-Key auth for /api/*; the web UI, /healthz and the internal /assets/*
   // endpoints are exempt (headless Chrome cannot present credentials).
+  // Also accepts ?key= so <a> downloads and <video> previews can authenticate
+  // (navigation requests cannot carry custom headers).
   app.addHook("onRequest", async (req, reply) => {
     const path = req.url.split("?")[0];
     if (!path.startsWith("/api/")) return;
     if (!CONFIG.apiKey) return;
-    if (req.headers["x-api-key"] !== CONFIG.apiKey) await reply.code(401).send({ error: "unauthorized" });
+    const provided = req.headers["x-api-key"] ?? (req.query as { key?: string }).key;
+    if (provided !== CONFIG.apiKey) await reply.code(401).send({ error: "unauthorized" });
   });
 
   registerJobRoutes(app, db);
