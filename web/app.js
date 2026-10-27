@@ -141,15 +141,61 @@ const deleteJob = async (job) => {
   }
 };
 
+const renderStats = (jobs) => {
+  const count = (s) => jobs.filter((j) => j.status === s).length;
+  $("#jobs-stats").innerHTML = [
+    `<span>${jobs.length} total</span>`,
+    `<span class="stat"><span class="dot dot-on"></span>${count("rendering")} rendering</span>`,
+    `<span class="stat"><span class="dot dot-warn"></span>${count("queued")} queued</span>`,
+    `<span class="stat"><span class="dot dot-off"></span>${count("failed")} failed</span>`,
+  ].join("");
+};
+
+/** Card preview area: 16:9. done -> click-to-play video; pending -> blurred
+ * procedural noise; failed -> error text panel. */
+const jobThumb = (job, queuedPosition) => {
+  if (job.status === "done" && job.videoUrl) {
+    return `
+      <div class="thumb">
+        <video src="${keyed(job.videoUrl)}" preload="none" muted playsinline></video>
+        <button class="play-overlay" aria-label="播放">
+          <svg viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z" /></svg>
+        </button>
+      </div>`;
+  }
+  if (job.status === "failed") {
+    return `
+      <div class="thumb thumb-error">
+        <div class="thumb-error-text" title="${esc(job.error ?? "render failed")}">${esc(job.error ?? "render failed")}</div>
+      </div>`;
+  }
+  if (job.status === "rendering") {
+    const pct = Math.round(job.progress * 100);
+    return `
+      <div class="thumb thumb-pending">
+        <div class="thumb-center"><span class="dot dot-on"></span><span>rendering ${pct}%</span></div>
+        <div class="progress"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </div>`;
+  }
+  return `
+    <div class="thumb thumb-pending">
+      <div class="thumb-center"><span class="dot dot-warn"></span><span>queued · 位置 #${queuedPosition}</span></div>
+    </div>`;
+};
+
 const renderJobs = () => {
   const list = $("#jobs-list");
   const jobs = state.jobs;
   $("#nav-jobs-count").textContent = jobs.length ? String(jobs.length) : "";
+  renderStats(jobs);
 
   if (jobs.length === 0) {
     list.innerHTML = '<div class="empty">暂无任务 — 到「新建任务」提交一个 .mid</div>';
     return;
   }
+
+  // Worker 领取最早的 queued 任务，按创建时间升序计算排队位置
+  const queuedAsc = jobs.filter((j) => j.status === "queued").sort((a, b) => a.createdAt - b.createdAt);
 
   list.innerHTML = jobs
     .map((job) => {
@@ -166,36 +212,25 @@ const renderJobs = () => {
         .map((t) => `<span>${t}</span>`)
         .join("");
 
-      const progress =
-        job.status === "rendering"
-          ? `<div class="progress"><div class="progress-fill" style="width:${Math.round(job.progress * 100)}%"></div></div>`
-          : "";
-
-      const error = job.error ? `<div class="row-meta"><span class="error">${esc(job.error)}</span></div>` : "";
-
       const actions = [
         job.videoUrl ? `<button class="btn" data-act="preview" data-id="${job.id}">预览</button>` : "",
         job.videoUrl ? `<button class="btn" data-act="download" data-id="${job.id}">下载</button>` : "",
         job.status !== "rendering" ? `<button class="btn btn-danger" data-act="delete" data-id="${job.id}">删除</button>` : "",
       ].join("");
 
-      const progressText = job.status === "rendering" ? `${Math.round(job.progress * 100)}%` : status.label;
-
       return `
-        <div class="list-row">
-          <span class="dot ${status.dot}"></span>
-          <div class="row-main">
+        <article class="job-card">
+          ${jobThumb(job, queuedAsc.indexOf(job) + 1)}
+          <div class="card-body">
             <div class="row-title">
+              <span class="dot ${status.dot}"></span>
               <span>${esc(job.title ?? "Untitled nocturne")}</span>
               <span class="id">${job.id.slice(0, 8)}</span>
-              <span class="id">${progressText}</span>
             </div>
             <div class="row-meta">${meta}</div>
-            ${progress}
-            ${error}
+            <div class="row-actions">${actions}</div>
           </div>
-          <div class="row-actions">${actions}</div>
-        </div>`;
+        </article>`;
     })
     .join("");
 
@@ -206,6 +241,16 @@ const renderJobs = () => {
       if (btn.dataset.act === "download") downloadJob(job);
       else if (btn.dataset.act === "preview") openPreview(job);
       else deleteJob(job);
+    });
+  });
+
+  // 点击播放：overlay 消失 -> 视频流式加载，播过之后由原生控制条接管
+  list.querySelectorAll(".thumb video").forEach((video) => {
+    const overlay = video.parentElement.querySelector(".play-overlay");
+    overlay.addEventListener("click", () => video.play());
+    video.addEventListener("play", () => {
+      overlay.classList.add("hidden");
+      video.controls = true;
     });
   });
 };
