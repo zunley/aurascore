@@ -1,7 +1,7 @@
 {
-  "name": "music-dance-gpt",
+  "name": "aurascore",
   "version": "1.0.0",
-  "description": "MIDI-driven animated music video as a service (Remotion + Fastify)",
+  "description": "aurascore — MIDI-driven animated music video as a service (Remotion + Fastify)",
   "repository": {},
   "license": "UNLICENSED",
   "type": "module",

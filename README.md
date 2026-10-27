@@ -1,4 +1,4 @@
-# music-dance-gpt — MIDI 动态乐谱视频渲染服务
+# aurascore — MIDI 动态乐谱视频渲染服务
 
 把 MIDI 文件渲染成动画乐谱视频（Remotion 合成 + Fastify 服务）。上传 `.mid` 与元信息，服务端异步渲染后返回 mp4。
 

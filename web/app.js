@@ -1,4 +1,4 @@
-/* music-dance-gpt console — vanilla JS, no build step */
+/* aurascore console — vanilla JS, no build step */
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);

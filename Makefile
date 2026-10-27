@@ -1,5 +1,5 @@
-# music-dance-gpt — 镜像构建与部署
-IMAGE      := music-dance-gpt
+# aurascore — 镜像构建与部署
+IMAGE      := aurascore
 VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMPOSE    := docker compose
 

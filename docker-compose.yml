@@ -1,10 +1,10 @@
 services:
-  music-dance-gpt:
-    image: music-dance-gpt:latest
+  aurascore:
+    image: aurascore:latest
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: music-dance-gpt
+    container_name: aurascore
     restart: unless-stopped
     ports:
       - "${PORT:-9302}:9302"
