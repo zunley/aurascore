@@ -21,11 +21,37 @@ npm run dev              # 终端 2：Remotion Studio，defaultProps 指向 /ass
 
 Studio 预览与线上渲染走**同一套资产接口**（`/assets/<jobId>/*`），本地换素材只需替换 `data/jobs/dev/` 下的 `input.mid` / `input.mp3`。
 
+## Web 管理界面
+
+浏览器打开 `http://<host>:9302/` 即可使用自带的管理控制台（`web/` 目录，原生 HTML/CSS/JS，无构建步骤，monospace-dark 风格）：
+
+- **新建任务**：上传 `.mid` + 配置曲名/帧率/分辨率/音色后提交渲染
+- **渲染任务**：全部任务列表，渲染中实时显示进度，支持下载 mp4 与删除
+- **音色库**：注册 `.sf2` 音色文件、查看/删除已有音色
+
+页面本身免鉴权；若设置了 `API_KEY`，在界面左下角填入即可（存于浏览器 localStorage，请求自动携带 `X-API-Key` 头）。
+
+## 部署（Docker）
+
+```bash
+cp .env.example .env    # 按需设置 API_KEY / PORT 等
+make up                 # 构建镜像并后台启动（docker compose）
+make logs               # 跟踪日志
+make down               # 停止
+```
+
+其他目标：`make build`（仅构建镜像，打 `latest` + git 版本号标签）、`make restart`、`make ps`、`make help`。数据持久化在 `./data`（任务产物、SQLite、SoundFont）。
+
+**镜像瘦身**：`.dockerignore` 排除了 `node_modules`、`data`、`sounds/*.sf2`（1.2GB）、`out` 等，镜像只含源码与 npm 依赖，约几百 MB。音色文件不入镜像：
+
+- 在 `./data/soundfonts/` 放置任意 `.sf2`（如 `default.sf2`），启动时自动注册；也可通过 Web 界面 / API 上传（注册后同样存入 `data/soundfonts/`）
+- 单一数据卷 `./data`，无需额外挂载
+
 ## API
 
 完整接口文档见 [docs/API.md](docs/API.md)（含请求/响应示例与状态码）。
 
-鉴权：设置 `API_KEY` 环境变量后，`/api/*` 需要 `X-API-Key` 头（`/healthz` 与 `/assets/*` 除外）。
+鉴权：设置 `API_KEY` 环境变量后，`/api/*` 需要 `X-API-Key` 头（Web 界面、`/healthz` 与 `/assets/*` 除外）。
 
 ### 提交渲染任务
 

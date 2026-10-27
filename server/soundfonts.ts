@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { closeSync, copyFileSync, createWriteStream, existsSync, mkdirSync, openSync, readSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
+import { closeSync, copyFileSync, createWriteStream, existsSync, mkdirSync, openSync, readdirSync, readSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { CONFIG } from "./config";
@@ -9,14 +9,38 @@ export const BUILTIN_SOUNDFONT = "default";
 export const SOUND_FONT_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const SF2_MAGIC = "sfbk";
 
+// SoundFonts live inside the persistent data dir (single volume, no extra
+// mount): deploy by dropping .sf2 files into data/soundfonts/, or via the API.
 export const soundfontsDir = () => join(CONFIG.dataDir, "soundfonts");
 export const soundfontPath = (name: string) => join(soundfontsDir(), `${name}.sf2`);
 
 const hashFile = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
-/** Ensures the data dir holds the built-in SoundFont and its DB row. */
+/** Moves .sf2 files accidentally left in data/sounds/ (short-lived naming) into data/soundfonts/. */
+const migrateStraySoundsDir = () => {
+  const strayDir = join(CONFIG.dataDir, "sounds");
+  if (!existsSync(strayDir)) return;
+  for (const entry of readdirSync(strayDir)) {
+    if (!entry.endsWith(".sf2") || entry.startsWith(".")) continue;
+    const target = join(soundfontsDir(), entry);
+    if (!existsSync(target)) renameSync(join(strayDir, entry), target);
+  }
+  try {
+    rmSync(strayDir, { recursive: true });
+  } catch {
+    /* not empty — keep it */
+  }
+};
+
+/**
+ * Ensures the data dir holds the built-in SoundFont and its DB row, then
+ * registers any stray .sf2 the operator placed in data/soundfonts/ manually.
+ */
 export const ensureSoundfonts = (db: Db) => {
   mkdirSync(soundfontsDir(), { recursive: true });
+  migrateStraySoundsDir();
+  // Local dev fallback: seed from the repo copy when the data dir has none.
+  // The container image ships without .sf2 files (see .dockerignore).
   const source = join(CONFIG.root, "sounds", "default.sf2");
   const target = soundfontPath(BUILTIN_SOUNDFONT);
   if (existsSync(source) && !existsSync(target)) {
@@ -24,6 +48,15 @@ export const ensureSoundfonts = (db: Db) => {
   }
   if (existsSync(target) && !getSoundfont(db, BUILTIN_SOUNDFONT)) {
     insertSoundfont(db, { name: BUILTIN_SOUNDFONT, size: statSync(target).size, sha256: hashFile(target), builtin: 1 });
+  }
+  // Register any .sf2 dropped into the persistent dir outside the API
+  // (e.g. mounted into the container volume at deploy time).
+  for (const entry of readdirSync(soundfontsDir())) {
+    if (!entry.endsWith(".sf2") || entry.startsWith(".")) continue;
+    const name = entry.slice(0, -4);
+    if (!SOUND_FONT_NAME_RE.test(name) || getSoundfont(db, name)) continue;
+    const path = join(soundfontsDir(), entry);
+    insertSoundfont(db, { name, size: statSync(path).size, sha256: hashFile(path), builtin: 0 });
   }
 };
 

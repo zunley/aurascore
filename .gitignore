@@ -3,3 +3,4 @@ out
 data
 sounds/*.sf2
 dev/*.mp3
+.env

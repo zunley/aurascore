@@ -1,0 +1,11 @@
+# 构建上下文瘦身：镜像只需要源码，数据与大文件走 volume 挂载
+node_modules
+data
+out
+dev
+.git
+.env
+agents
+.agents
+.claude
+sounds/*.sf2

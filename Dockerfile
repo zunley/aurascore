@@ -16,6 +16,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev || (cat /root/.npm/_logs/*-debug-0.log && exit 1)
 
 COPY . .
+# 注意：.dockerignore 排除了 sounds/*.sf2，音色文件不入镜像，
+# 由数据卷 data/soundfonts/ 提供（见 docker-compose.yml 与 docs/API.md）
 # Pre-download the Remotion headless shell so first boot needs no network.
 RUN npx remotion browser ensure
 
