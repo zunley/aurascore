@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --omit=dev --loglevel=error
+#RUN npm ci --omit=dev
+RUN npm ci --omit=dev || (cat /root/.npm/_logs/*-debug-0.log && exit 1)
 
 COPY . .
 # Pre-download the Remotion headless shell so first boot needs no network.
