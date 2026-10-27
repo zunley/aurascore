@@ -1,7 +1,8 @@
 import React, {useEffect, useState} from "react";
-import {Audio, cancelRender, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from "remotion";
+import {Audio, cancelRender, continueRender, delayRender, interpolate, spring, useCurrentFrame, useVideoConfig} from "remotion";
 import {ANIMATION_CONFIG as config} from "./AnimationConfig";
-import {MidiNote, ParsedMidi, parseMidi} from "./midi";
+import {SceneProps, assetUrl} from "./SceneProps";
+import {MidiNote, ParsedMidi, parseMidi} from "../shared/midi";
 
 const clamp = {extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as const};
 const FIRST_NOTE_X = 470;
@@ -94,25 +95,10 @@ const VoiceCursor: React.FC<{notes: MidiNote[]; midi: ParsedMidi; frame: number;
   </>;
 };
 
-const loadMidi = async (): Promise<ParsedMidi> => {
-  const response = await fetch(staticFile("input.mid"));
-  if (!response.ok) throw new Error(`Could not load public/input.mid (${response.status})`);
+const loadMidi = async (assetBaseUrl: string): Promise<ParsedMidi> => {
+  const response = await fetch(assetUrl({assetBaseUrl}, "input.mid"));
+  if (!response.ok) throw new Error(`Could not load input.mid (${response.status})`);
   return parseMidi(await response.arrayBuffer());
-};
-
-/** Optional public/metadata.json; a missing or invalid file just falls back to a placeholder title. */
-const loadMetadata = async (): Promise<{title?: string} | null> => {
-  try {
-    const response = await fetch(staticFile("metadata.json"));
-    if (!response.ok) return null;
-    const data: unknown = await response.json();
-    if (typeof data === "object" && data !== null && "title" in data && typeof (data as {title: unknown}).title === "string") {
-      return data as {title: string};
-    }
-    return {};
-  } catch {
-    return null;
-  }
 };
 
 const MidiScore: React.FC<{midi: ParsedMidi; title: string}> = ({midi, title}) => {
@@ -191,26 +177,24 @@ const MidiScore: React.FC<{midi: ParsedMidi; title: string}> = ({midi, title}) =
   );
 };
 
-export const MusicDanceScene: React.FC = () => {
+export const MusicDanceScene: React.FC<SceneProps> = ({assetBaseUrl, title}) => {
   const [midi, setMidi] = useState<ParsedMidi | null>(null);
-  const [title, setTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [handle] = useState(() => delayRender("Loading public/input.mid"));
+  const [handle] = useState(() => delayRender("Loading input.mid"));
 
   useEffect(() => {
-    Promise.all([loadMidi(), loadMetadata()]).then(([parsed, metadata]) => {
+    loadMidi(assetBaseUrl).then((parsed) => {
       if (parsed.notes.length === 0) throw new Error("input.mid contains no note events");
       setMidi(parsed);
-      setTitle(metadata?.title ?? "Untitled nocturne");
       continueRender(handle);
     }).catch((cause: unknown) => {
       const message = cause instanceof Error ? cause.message : String(cause);
       setError(message);
       cancelRender(new Error(message));
     });
-  }, [handle]);
+  }, [handle, assetBaseUrl]);
 
-  if (error) return <div style={{padding: 40, color: "#5d3030", background: "#f4eedf", fontFamily: "Georgia, serif"}}>Unable to read public/input.mid: {error}</div>;
+  if (error) return <div style={{padding: 40, color: "#5d3030", background: "#f4eedf", fontFamily: "Georgia, serif"}}>Unable to read input.mid: {error}</div>;
   if (!midi) return null;
-  return <><Audio src={staticFile("input.mp3")} /><MidiScore midi={midi} title={title ?? "Untitled nocturne"} /></>;
+  return <><Audio src={assetUrl({assetBaseUrl}, "input.mp3")} /><MidiScore midi={midi} title={title ?? "Untitled nocturne"} /></>;
 };

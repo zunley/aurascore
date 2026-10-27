@@ -1,62 +1,110 @@
-# Remotion video
+# music-dance-gpt — MIDI 动态乐谱视频渲染服务
 
-<p align="center">
-  <a href="https://github.com/remotion-dev/logo">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-dark.apng">
-      <img alt="Animated Remotion Logo" src="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-light.gif">
-    </picture>
-  </a>
-</p>
+把 MIDI 文件渲染成动画乐谱视频（Remotion 合成 + Fastify 服务）。上传 `.mid` 与元信息，服务端异步渲染后返回 mp4。
 
-Welcome to your Remotion project!
+完整设计方案见 [docs/render-service-plan.md](docs/render-service-plan.md)。
 
-## Commands
+## 前置依赖
 
-**Install Dependencies**
+- Node.js ≥ 20.19 / 22.13 / 24
+- `fluidsynth`、`ffmpeg`（音频管线）
+- SoundFont：`sounds/default.sf2`（已内置 Salamander 钢琴，随镜像/本地提供）
 
-```console
-npm i --loglevel=error
+## 快速开始（本地开发）
+
+```bash
+npm i
+npm run dev:setup        # 准备 data/jobs/dev/ 与 data/soundfonts/
+npm run server           # 终端 1：API + 渲染 worker（:9302）
+npm run dev              # 终端 2：Remotion Studio，defaultProps 指向 /assets/dev
 ```
 
-**Start Preview**
+Studio 预览与线上渲染走**同一套资产接口**（`/assets/<jobId>/*`），本地换素材只需替换 `data/jobs/dev/` 下的 `input.mid` / `input.mp3`。
 
-```console
-npm run dev
+## API
+
+鉴权：设置 `API_KEY` 环境变量后，`/api/*` 需要 `X-API-Key` 头（`/healthz` 与 `/assets/*` 除外）。
+
+### 提交渲染任务
+
+```bash
+curl -F "file=@song.mid" -F "title=Flower Dance" \
+     -F "fps=24" -F "width=1280" -F "height=720" \
+     -F "soundfont=default" \
+     localhost:9302/api/v1/jobs
+# → 202 {"jobId":"...","status":"queued","durationSeconds":187.4,"links":{...}}
 ```
 
-**Generate audio from MIDI**
+限制：mid ≤ 5MB、时长 ≤ 300s、fps ∈ {24,30,60}、分辨率 ≤ 1920×1080、队列深度 ≤ 20。
 
-Renders `public/input.mid` through a SoundFont (`public/sounds.sf2`, or any other `.sf2` in `public/`) into `public/input.mp3`. Requires `fluidsynth` and `ffmpeg`. Runs automatically before `dev`/`build`/`render` when `public/input.mp3` is missing.
+### 轮询与下载
 
-```console
-npm run audio
+```bash
+curl localhost:9302/api/v1/jobs/<jobId>          # {status, progress, videoUrl, ...}
+curl -OJ localhost:9302/api/v1/jobs/<jobId>/video # 完成后下载 mp4
+curl -X DELETE localhost:9302/api/v1/jobs/<jobId> # 取消/删除
 ```
 
-**Render video**
+### SoundFont 管理
 
-```console
-npm run render
+任务只引用标识名，文件上传走独立接口（注册一次多任务复用）：
+
+```bash
+curl -F "file=@my-piano.sf2" -F "name=my-piano" localhost:9302/api/v1/soundfonts   # 201
+curl localhost:9302/api/v1/soundfonts                                               # 列表
+curl -X DELETE localhost:9302/api/v1/soundfonts/my-piano                            # 204
 ```
 
-**Upgrade Remotion**
+校验：`name` 白名单字符、`sfbk` 魔数、≤ 512MB、sha256 去重。内置 `default` 不可删除。
 
-```console
-npx remotion upgrade
+### CLI 渲染（与 HTTP 同一契约）
+
+```bash
+npx remotion render MusicDance3D out/test.mp4 \
+  --props='{"assetBaseUrl":"http://127.0.0.1:9302/assets/<jobId>","title":"Flower Dance"}'
 ```
 
-## Docs
+## 命令
 
-Get started with Remotion by reading the [fundamentals page](https://www.remotion.dev/docs/the-fundamentals).
+| 命令 | 说明 |
+|------|------|
+| `npm run server` | 启动 API + 内嵌渲染 worker |
+| `npm run dev` | Remotion Studio 预览 |
+| `npm run dev:setup` | 初始化本地 data/ 目录 |
+| `npm run audio -- in.mid out.mp3` | 单独生成音频（fluidsynth + ffmpeg） |
+| `npm run lint` | eslint + tsc |
+| `npm run render` | CLI 渲染（走 defaultProps 的 dev 资产） |
 
-## Help
+## 环境变量
 
-We provide help on our [Discord server](https://discord.gg/6VzzNDwUwV).
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `PORT` | 9302 | 监听端口 |
+| `HOST` | 0.0.0.0 | 监听地址 |
+| `API_KEY` | 关闭 | 设置后启用 X-API-Key 鉴权 |
+| `DATA_DIR` | ./data | 任务与 SoundFont 存储目录 |
+| `WORKER_CONCURRENCY` | 1 | 并行渲染数（每个渲染约占 1-2GB 内存） |
+| `MAX_QUEUE_DEPTH` | 20 | 队列满时提交返回 429 |
 
-## Issues
+## Docker
 
-Found an issue with Remotion? [File an issue here](https://github.com/remotion-dev/remotion/issues/new).
+```bash
+docker build -t music-dance-render .
+docker run -p 9302:9302 -v music-data:/app/data -e API_KEY=changeme music-dance-render
+```
 
-## License
+## 目录结构
 
-Note that for some entities a company license is needed. [Read the terms here](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
+```
+src/        Remotion 合成（参数化：assetBaseUrl/title/fps/width/height）
+shared/     同构模块：midi 解析（浏览器+Node）、音频生成（Node）
+server/     Fastify API：jobs、soundfonts、assets 路由 + SQLite + 内嵌 worker
+scripts/    dev 初始化、音频 CLI
+sounds/     内置 SoundFont（default.sf2，git 忽略）
+dev/        本地预览素材
+data/       运行期数据（git 忽略）：jobs/<id>/、soundfonts/、jobs.db
+```
+
+## 许可注意
+
+Remotion 对个人及 ≤3 人团队免费；更大规模商用需购买 [company license](https://remotion.dev/license)。

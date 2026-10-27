@@ -1,4 +1,5 @@
-public/*
-!public/metadata.json
 node_modules
 out
+data
+sounds/*.sf2
+dev/*.mp3

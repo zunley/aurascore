@@ -1,37 +1,43 @@
 {
   "name": "music-dance-gpt",
   "version": "1.0.0",
-  "description": "My Remotion video",
+  "description": "MIDI-driven animated music video as a service (Remotion + Fastify)",
   "repository": {},
   "license": "UNLICENSED",
+  "type": "module",
   "engines": {
     "node": "^20.19.0 || ^22.13.0 || >=24"
   },
   "private": true,
   "dependencies": {
+    "@remotion/bundler": "4.0.538",
     "@remotion/cli": "4.0.538",
+    "@remotion/renderer": "4.0.538",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "remotion": "4.0.538"
   },
   "devDependencies": {
+    "@fastify/multipart": "9.4.0",
     "@remotion/eslint-config-flat": "4.0.538",
+    "@types/node": "26.6.5",
     "@types/react": "19.2.7",
     "@types/web": "0.0.166",
     "eslint": "10.12.0",
+    "fastify": "5.12.7",
     "prettier": "3.8.1",
+    "tsx": "4.23.15",
     "typescript": "5.9.3"
   },
   "scripts": {
-    "audio": "node scripts/generate-audio.mjs",
-    "prerender": "node scripts/generate-audio.mjs --if-missing",
-    "render": "remotion render MusicDance3D out/video.mp4",
-    "predev": "node scripts/generate-audio.mjs --if-missing",
-    "dev": "remotion studio",
-    "prebuild": "node scripts/generate-audio.mjs --if-missing",
+    "audio": "tsx scripts/generate-audio.ts",
     "build": "remotion bundle",
-    "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc"
+    "dev": "remotion studio",
+    "dev:setup": "node scripts/dev-setup.mjs",
+    "lint": "eslint src shared server && tsc",
+    "render": "remotion render MusicDance3D out/video.mp4",
+    "server": "tsx server/index.ts",
+    "upgrade": "remotion upgrade"
   },
   "allowScripts": {
     "esbuild": false
