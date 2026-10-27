@@ -34,6 +34,19 @@ curl -OJ localhost:9302/api/v1/jobs/d8b5.../video
 
 ## 渲染任务
 
+### GET /api/v1/jobs — 列出全部任务
+
+按创建时间倒序返回全部任务（默认最多 500 条）：
+
+```json
+{
+  "items": [
+    {"id": "d8b5ec65-...", "status": "done", "progress": 1, "title": "Flower Dance", "...": "同单任务字段"}
+  ],
+  "queueDepth": 0
+}
+```
+
 ### POST /api/v1/jobs — 提交渲染任务
 
 `multipart/form-data` 字段：
@@ -138,6 +151,10 @@ curl -OJ localhost:9302/api/v1/jobs/d8b5.../video
 ---
 
 ## 其他
+
+### GET / — Web 管理界面
+
+服务自带单页管理界面（`web/`，无需构建），提供：提交渲染任务、全部任务列表（含进度轮询）、音色库管理。页面本身免鉴权；若设置了 `API_KEY`，在界面左下角填入即可（浏览器本地保存，请求携带 `X-API-Key` 头）。
 
 ### GET /healthz — 存活检查
 

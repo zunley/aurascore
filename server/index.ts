@@ -8,6 +8,7 @@ import { ensureSoundfonts, registerSoundfontRoutes } from "./soundfonts";
 import { registerJobRoutes } from "./routes";
 import { startWorker } from "./worker";
 import { getServeUrl } from "./bundle";
+import { registerWebUi } from "./web";
 
 const main = async () => {
   mkdirSync(join(CONFIG.dataDir, "jobs"), { recursive: true });
@@ -17,17 +18,18 @@ const main = async () => {
   const app = Fastify({ logger: true });
   await app.register(multipart, { limits: { files: 1, fields: 10, fileSize: CONFIG.maxSoundfontBytes } });
 
-  // X-API-Key auth for /api/*; /healthz and the internal /assets/* endpoints
-  // are exempt (headless Chrome cannot present credentials).
+  // X-API-Key auth for /api/*; the web UI, /healthz and the internal /assets/*
+  // endpoints are exempt (headless Chrome cannot present credentials).
   app.addHook("onRequest", async (req, reply) => {
     const path = req.url.split("?")[0];
-    if (path === "/healthz" || path.startsWith("/assets/")) return;
+    if (!path.startsWith("/api/")) return;
     if (!CONFIG.apiKey) return;
     if (req.headers["x-api-key"] !== CONFIG.apiKey) await reply.code(401).send({ error: "unauthorized" });
   });
 
   registerJobRoutes(app, db);
   registerSoundfontRoutes(app, db);
+  registerWebUi(app);
   app.get("/healthz", async () => ({ ok: true, queueDepth: queueDepth(db) }));
 
   await app.listen({ port: CONFIG.port, host: CONFIG.host });

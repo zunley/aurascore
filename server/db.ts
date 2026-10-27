@@ -72,6 +72,10 @@ export const insertJob = (db: Db, job: NewJob) => {
   ).run(job.id, job.title, job.fps, job.width, job.height, job.soundfont, job.duration_seconds, now, now);
 };
 
+/** All jobs, newest first. */
+export const listJobs = (db: Db, limit = 500): JobRow[] =>
+  db.prepare("SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?").all(limit) as unknown as JobRow[];
+
 export const getJob = (db: Db, id: string): JobRow | null => db.prepare("SELECT * FROM jobs WHERE id = ?").get(id) as JobRow | null;
 
 export const queueDepth = (db: Db): number => {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { parseMidi } from "../shared/midi";
 import { CONFIG } from "./config";
-import { Db, JobRow, deleteJob, getJob, getSoundfont, insertJob, queueDepth } from "./db";
+import { Db, JobRow, deleteJob, getJob, getSoundfont, insertJob, listJobs, queueDepth } from "./db";
 
 const ALLOWED_FPS = [24, 30, 60];
 const JOB_ID_RE = /^[A-Za-z0-9-]{1,64}$/;
@@ -104,6 +104,8 @@ export const registerJobRoutes = (app: FastifyInstance, db: Db) => {
       links: { status: `/api/v1/jobs/${id}`, video: `/api/v1/jobs/${id}/video` },
     };
   });
+
+  app.get("/api/v1/jobs", async () => ({ items: listJobs(db).map(jobToJson), queueDepth: queueDepth(db) }));
 
   app.get("/api/v1/jobs/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
