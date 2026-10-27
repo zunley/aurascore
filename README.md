@@ -8,10 +8,9 @@ Web 管理控制台 —— 任务列表、渲染进度、在线预览与下载�
 
 ![Web 管理控制台](docs/assets/console-jobs.png)
 
-渲染效果片段（点击封面观看，示例曲目 *Merry Christmas Mr. Lawrence*，源文件在 [docs/assets](docs/assets)）：
+渲染效果（示例曲目 *Merry Christmas Mr. Lawrence* 高潮段落，[带声音的 mp4 片段](docs/assets/demo.mp4)）：
 
-[![旋律段落](docs/assets/demo-melody.png)](docs/assets/demo-melody.mp4)
-[![高潮段落](docs/assets/demo-climax.png)](docs/assets/demo-climax.mp4)
+![渲染效果](docs/assets/demo.webp)
 
 ## 功能
 
