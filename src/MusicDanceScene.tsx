@@ -147,8 +147,12 @@ const MidiScore: React.FC<{midi: ParsedMidi; title: string}> = ({midi, title}) =
   return (
     <div style={{position: "absolute", inset: 0, overflow: "hidden", background: "radial-gradient(ellipse at 50% 48%, #e9e2d2 0%, #d5ccba 100%)", color: config.colors.text, fontFamily: "Georgia, 'Times New Roman', serif", perspective: `${config.perspective}px`, perspectiveOrigin: "50% 48%", transformStyle: "preserve-3d"}}>
       <div style={{position: "absolute", inset: 0, opacity: 0.24, backgroundImage: "repeating-linear-gradient(0deg, rgba(86,72,48,.08) 0px, transparent 1px, transparent 4px), radial-gradient(ellipse, transparent 58%, rgba(76,65,47,.22) 100%)"}} />
-      <div style={{position: "absolute", left: "8%", top: "8%", font: "italic 24px Georgia, serif", color: "#39465a"}}>{title}</div>
-      <div style={{position: "absolute", right: "8%", top: "9%", font: "10px ui-sans-serif, system-ui", letterSpacing: ".2em", color: "#6e7781"}}>SOURCE  /  INPUT.MID</div>
+      <div style={{position: "absolute", left: "8%", top: "7%"}}>
+        <div style={{font: "10px ui-sans-serif, system-ui", letterSpacing: ".32em", color: "#8b7a5c", textTransform: "uppercase"}}>Piano score</div>
+        <div style={{font: "italic 44px Georgia, serif", color: "#39465a", lineHeight: 1.15, marginTop: 4}}>{title}</div>
+        <div style={{width: 64, height: 1, background: "#8b7a5c", opacity: 0.6, marginTop: 10}} />
+        <div style={{font: "italic 13px Georgia, serif", color: "#6e7781", marginTop: 8}}>for player piano · animated notation</div>
+      </div>
       <div style={{position: "absolute", left: 0, top: "51%", width: Math.max(scoreWidth, width * 2), height: 570, transform: `translateY(-50%) rotateX(${config.stageRotateX}deg) rotateZ(${config.stageRotateZ}deg)`, transformStyle: "preserve-3d", transformOrigin: "0 50%"}}>
         <div style={{position: "absolute", inset: 0, backgroundColor: config.colors.paper, backgroundImage: "linear-gradient(90deg, rgba(107,80,47,.035), transparent 12%, transparent 88%, rgba(107,80,47,.04)), repeating-linear-gradient(0deg, rgba(108,90,62,.018), rgba(108,90,62,.018) 1px, transparent 1px, transparent 5px)", boxShadow: "0 22px 70px rgba(48,42,31,.24), 0 2px 7px rgba(50,45,34,.18)", border: "1px solid rgba(94,77,52,.16)"}} />
         <div style={{position: "absolute", inset: 0, transform: `translateX(${-cameraX}px)`, transformStyle: "preserve-3d", willChange: "transform"}}>
